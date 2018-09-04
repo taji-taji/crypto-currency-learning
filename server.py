@@ -2,6 +2,7 @@ from concurrent.futures import ThreadPoolExecutor
 import socket
 import os
 
+
 def __handle_message(args_tuple):
     
     conn, addr, data_sum = args_tuple
@@ -16,10 +17,12 @@ def __handle_message(args_tuple):
         if data != '':
             print(data_sum)
 
+
 def __get_myip():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     s.connect(('8.8.8.8', 80))
     return s.getsockname()[0]
+
 
 def main():
 
@@ -46,6 +49,7 @@ def main():
         print('Connected by .. ', addr)
         data_sum = ''
         executor.submit(__handle_message, (conn, addr, data_sum))
+
 
 if __name__ == '__main__':
     main()
