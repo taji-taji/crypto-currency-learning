@@ -27,7 +27,14 @@ class ConnectionManager:
 
     # 指定されたノードに対してメッセージを送る
     def send_msg(self, peer, msg):
-        return
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.connect((peer))
+            s.sendall(msg.encode('utf8'))
+            s.close()
+        except OSError:
+            print('Connection failed for peer: ', peer)
+            self.__remove_peer(peer)
 
     # Coreノードリストに登録されている全てのノードに対して
     # 同じメッセージをブロードキャストする
