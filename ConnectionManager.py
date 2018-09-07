@@ -1,5 +1,9 @@
 from concurrent.futures import ThreadPoolExecutor
 from message_manager import MessageManager
+from message_manager.MessageManager import ERR_PROTOCOL_UNMATCH, ERR_VERSION_UNMATCH
+from message_manager.MessageManager import OK_WITH_PAYLOAD, OK_WITHOUT_PAYLOAD
+from message_manager.MessageManager import MSG_ADD, MSG_CORE_LIST, MSG_REMOVE, MSG_PING, MSG_REQUEST_CORE_LIST
+import pickle
 import socket
 
 PING_INTERVAL = 180  # 30分
@@ -22,12 +26,12 @@ class ConnectionManager:
         return
 
     # 指定されたノードに対してメッセージを送る
-    def send_msg(self):
+    def send_msg(self, peer, msg):
         return
 
     # Coreノードリストに登録されている全てのノードに対して
     # 同じメッセージをブロードキャストする
-    def send_msg_to_all_peer(self):
+    def send_msg_to_all_peer(self, msg):
         return
 
     # 終了前の処理としてソケットを閉じる（ServerCore向け
@@ -52,6 +56,53 @@ class ConnectionManager:
         result, reason, cmd, peer_port, payload = self.mm.parse(data_sum)
         print(result, reason, cmd, peer_port, payload)
         status = (result, reason)
+
+        if status == ('error', ERR_PROTOCOL_UNMATCH):
+            print('Error: Protocol name is not matched')
+            return
+        elif status == ('error', ERR_VERSION_UNMATCH):
+            print('Error: Protocol version is not matched')
+            return
+        elif status == ('ok', OK_WITHOUT_PAYLOAD):
+            if cmd == MSG_ADD:
+                print('Add node request was received!!')
+                self.__add_peer((addr[0], peer_port))
+                if (addr[0], peer_port) == (self.host, self.port):
+                    return
+                else:
+                    cl = pickle.dumps(self.core_node_set, 0).decode()
+                    msg = self.mm.build(MSG_CORE_LIST, self.port, cl)
+                    self.send_msg_to_all_peer(msg)
+            elif cmd == MSG_REMOVE:
+                print('Remove request was received!! from ', addr[0], peer_port)
+                self.__remove_peer((addr[0], peer_port))
+                cl = pickle.dumps(self.core_node_set, 0).decode()
+                msg = self.mm.build(MSG_CORE_LIST, self.port, cl)
+                self.send_msg_to_all_peer(msg)
+            elif cmd == MSG_PING:
+                return
+            elif cmd == MSG_REQUEST_CORE_LIST:
+                print('List for Core nodes was requested!!')
+                cl = pickle.dumps(self.core_node_set, 0).decode()
+                msg = self.mm.build(MSG_CORE_LIST, self.port, cl)
+                self.send_msg((addr[0], peer_port), msg)
+            else:
+                print('received unknown command ', cmd)
+                return
+        elif status == ('ok', OK_WITH_PAYLOAD):
+            if cmd == MSG_CORE_LIST:
+                # TODO: 受信したリストをただ上書きしてしまうのは
+                # 本来セキュリティ的にはよろしくない。
+                # 信頼できるノードの鍵とかをセットしとく必要があるかも
+                print('Refresh the core node list...')
+                new_core_set = pickle.loads(payload.encode('utf8'))
+                print('latest code node list: ', new_core_set)
+                self.core_node_set = new_core_set
+            else:
+                print('received unknown command ', cmd)
+                return
+        else:
+            print('Unexpected stauts: ', status)
 
     # 新たに接続されたCoreノードをリストに追加する
     def __add_peer(self, peer):
