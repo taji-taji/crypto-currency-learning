@@ -1,10 +1,20 @@
 from concurrent.futures import ThreadPoolExecutor
-from message_manager import MessageManager
-from message_manager.MessageManager import ERR_PROTOCOL_UNMATCH, ERR_VERSION_UNMATCH
-from message_manager.MessageManager import OK_WITH_PAYLOAD, OK_WITHOUT_PAYLOAD
-from message_manager.MessageManager import MSG_ADD, MSG_CORE_LIST, MSG_REMOVE, MSG_PING, MSG_REQUEST_CORE_LIST
+from .message_manager import (
+    MessageManager,
+    MSG_ADD,
+    MSG_CORE_LIST,
+    MSG_REMOVE,
+    MSG_PING,
+    MSG_REQUEST_CORE_LIST,
+
+    ERR_PROTOCOL_UNMATCH,
+    ERR_VERSION_UNMATCH,
+    OK_WITH_PAYLOAD,
+    OK_WITHOUT_PAYLOAD
+)
 import pickle
 import socket
+import threading
 
 PING_INTERVAL = 180  # 30分
 
@@ -15,7 +25,7 @@ class ConnectionManager:
         self.port = my_port
         self.core_node_set = set()
         self.__add_peer((host, my_port))
-        self.mm = MessageManager.MessageManager()
+        self.mm = MessageManager()
 
     # 待受を開始する際に呼び出される（ServerCore向け
     def start(self):
@@ -39,7 +49,11 @@ class ConnectionManager:
     # Coreノードリストに登録されている全てのノードに対して
     # 同じメッセージをブロードキャストする
     def send_msg_to_all_peer(self, msg):
-        return
+        print('send_msg_to_all_peer was called!')
+        for peer in self.core_node_set:
+            if peer != (self.host, self.port):
+                print('message will sent to ... ', peer)
+                self.send_msg(peer, msg)
 
     # 終了前の処理としてソケットを閉じる（ServerCore向け
     def connection_close(self):
@@ -98,7 +112,7 @@ class ConnectionManager:
                 return
         elif status == ('ok', OK_WITH_PAYLOAD):
             if cmd == MSG_CORE_LIST:
-                # TODO: 受信したリストをただ上書きしてしまうのは
+                # TODO: 受信したリストをただ上書きしてしまうのは
                 # 本来セキュリティ的にはよろしくない。
                 # 信頼できるノードの鍵とかをセットしとく必要があるかも
                 print('Refresh the core node list...')
@@ -125,6 +139,32 @@ class ConnectionManager:
 
     # 接続されているCoreノード全ての接続状況確認を行う
     def __check_peers_connection(self):
+        """
+        接続されているCoreノードすべての接続状況確認を行う。
+        クラス外からは使用されない想定
+        この処理は定期的に実行される
+        """
+        print('check_peers_to_connection was called!')
+        changed = False
+        dead_c_node_set = list(filter(lambda p: not self.__is_alive(p), self.core_node_set))
+
+        if dead_c_node_set:
+            changed = True
+            print('Removing ', dead_c_node_set)
+            self.core_node_set = self.core_node_set - set(dead_c_node_set)
+
+        print('current core node list: ', self.core_node_set)
+
+        # 変更があった時だけブロードキャストで伝える
+        if changed:
+            cl = pickle.dumps(self.core_node_set, 0).decode()
+            msg = self.mm.build(MSG_CORE_LIST, self.port, cl)
+            self.send_msg_to_all_peer(msg)
+
+        self.ping_timer = threading.Timer(PING_INTERVAL, self.__check_peers_connection)
+        self.ping_timer.start()
+
+    def __is_alive(self, peer):
         return
 
     def __wait_for_access(self):

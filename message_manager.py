@@ -17,6 +17,7 @@ ERR_VERSION_UNMATCH = 1
 OK_WITH_PAYLOAD = 2
 OK_WITHOUT_PAYLOAD = 3
 
+
 class MessageManager:
     def __init__(self):
         print('Initializing MessageManager...')
