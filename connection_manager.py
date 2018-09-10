@@ -65,7 +65,15 @@ class ConnectionManager:
 
     # 終了前の処理としてソケットを閉じる（ServerCore向け
     def connection_close(self):
-        return
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.connect((self.host, self.port))
+        self.socket.close()
+        s.close()
+        # 接続確認のスレッドの停止
+        self.ping_timer.cancel()
+        # 離脱要求の送信
+        msg = self.mm.build(MSG_REMOVE, self.port)
+        self.send_msg((self.my_c_host, self.my_c_port), msg)
 
     # 受信したメッセージを確認して、内容に応じた処理をする
     def __handle_message(self, params):
