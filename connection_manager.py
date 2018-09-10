@@ -164,8 +164,22 @@ class ConnectionManager:
         self.ping_timer = threading.Timer(PING_INTERVAL, self.__check_peers_connection)
         self.ping_timer.start()
 
-    def __is_alive(self, peer):
-        return
+    def __is_alive(self, target):
+        """
+        有効ノード確認メッセージの送信
+        :param target: 有効ノード確認メッセージの送り先となるノードの接続情報（IPアドレスとポート番号）
+        :return: boolean
+        """
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.connect((target))
+            msg_type = MSG_PING
+            msg = self.mm.build(msg_type)
+            s.sendall(msg.encode('utf-8'))
+            s.close()
+            return True
+        except OSError:
+            return False
 
     def __wait_for_access(self):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
