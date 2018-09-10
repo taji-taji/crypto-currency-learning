@@ -37,8 +37,10 @@ class ConnectionManager:
         self.ping_timer.start()
 
     # ユーザーが指定した既知のCoreノードへの接続（ServerCore向け
-    def join_network(self):
-        return
+    def join_network(self, host, port):
+        self.my_c_host = host
+        self.my_c_port = port
+        self.__connect_to_P2PNW(host, port)
 
     # 指定されたノードに対してメッセージを送る
     def send_msg(self, peer, msg):
@@ -206,3 +208,10 @@ class ConnectionManager:
 
             params = (soc, addr, data_sum)
             executor.submit(self.__handle_message, params)
+
+    def __connect_to_P2PNW(self, host, port):
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.connect((host, port))
+        msg = self.mm.build(MSG_ADD)
+        s.sendall(msg.encode('utf-8'))
+        s.close()
