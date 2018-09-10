@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
+from .core_node_list import  CoreNodeList
 from .message_manager import (
     MessageManager,
     MSG_ADD,
@@ -23,7 +24,7 @@ class ConnectionManager:
     def __init__(self, host, my_port):
         self.host = host
         self.port = my_port
-        self.core_node_set = set()
+        self.core_node_set = CoreNodeList()
         self.__add_peer((host, my_port))
         self.mm = MessageManager()
 
@@ -50,7 +51,8 @@ class ConnectionManager:
     # 同じメッセージをブロードキャストする
     def send_msg_to_all_peer(self, msg):
         print('send_msg_to_all_peer was called!')
-        for peer in self.core_node_set:
+        current_list = self.core_node_set.get_list()
+        for peer in current_list:
             if peer != (self.host, self.port):
                 print('message will sent to ... ', peer)
                 self.send_msg(peer, msg)
@@ -91,13 +93,13 @@ class ConnectionManager:
                 if (addr[0], peer_port) == (self.host, self.port):
                     return
                 else:
-                    cl = pickle.dumps(self.core_node_set, 0).decode()
+                    cl = pickle.dumps(self.core_node_set.get_list(), 0).decode()
                     msg = self.mm.build(MSG_CORE_LIST, self.port, cl)
                     self.send_msg_to_all_peer(msg)
             elif cmd == MSG_REMOVE:
                 print('Remove request was received!! from ', addr[0], peer_port)
                 self.__remove_peer((addr[0], peer_port))
-                cl = pickle.dumps(self.core_node_set, 0).decode()
+                cl = pickle.dumps(self.core_node_set.get_list(), 0).decode()
                 msg = self.mm.build(MSG_CORE_LIST, self.port, cl)
                 self.send_msg_to_all_peer(msg)
             elif cmd == MSG_PING:
@@ -145,19 +147,22 @@ class ConnectionManager:
         この処理は定期的に実行される
         """
         print('check_peers_to_connection was called!')
+        current_core_list = self.core_node_set.get_list()
         changed = False
-        dead_c_node_set = list(filter(lambda p: not self.__is_alive(p), self.core_node_set))
+        dead_c_node_set = list(filter(lambda p: not self.__is_alive(p), current_core_list))
 
         if dead_c_node_set:
             changed = True
-            print('Removing ', dead_c_node_set)
-            self.core_node_set = self.core_node_set - set(dead_c_node_set)
+            print('Removing peer ', dead_c_node_set)
+            current_core_list = current_core_list - set(dead_c_node_set)
+            self.core_node_set.override(current_core_list)
 
-        print('current core node list: ', self.core_node_set)
+        current_core_list = self.core_node_set.get_list()
+        print('current core node list: ', current_core_list)
 
         # 変更があった時だけブロードキャストで伝える
         if changed:
-            cl = pickle.dumps(self.core_node_set, 0).decode()
+            cl = pickle.dumps(self.core_node_set.get_list(), 0).decode()
             msg = self.mm.build(MSG_CORE_LIST, self.port, cl)
             self.send_msg_to_all_peer(msg)
 
