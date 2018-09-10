@@ -30,7 +30,11 @@ class ConnectionManager:
 
     # 待受を開始する際に呼び出される（ServerCore向け
     def start(self):
-        return
+        t = threading.Thread(target=self.__wait_for_access)
+        t.start()
+
+        self.ping_timer = threading.Timer(PING_INTERVAL, self.__check_peers_connection)
+        self.ping_timer.start()
 
     # ユーザーが指定した既知のCoreノードへの接続（ServerCore向け
     def join_network(self):
